@@ -50,12 +50,15 @@ public class FaAccess
         DynamicMethod dynamicMethod = new("FA_" + info.Name, typeof(object), s_InvokeArguments, info.DeclaringType, true);
         ILGenerator il = dynamicMethod.GetILGenerator();
 
-        ParameterInfo[] ps = info.GetParameters();
-        int paramLength = ps.Length;
+        ParameterInfo[] parametersInfos = info.GetParameters();
+        int paramLength = parametersInfos.Length;
         Type[] paramTypes = new Type[paramLength];
 
         for(int i = 0; i < paramLength; i++)
-            paramTypes[i] = ps[i].ParameterType.IsByRef ? ps[i].ParameterType.GetElementType()! : ps[i].ParameterType;
+        {
+            Type paramType = parametersInfos[i].ParameterType;
+            paramTypes[i] = paramType.IsByRef ? paramType.GetElementType()! : paramType;
+        }
 
         LocalBuilder[] locals = new LocalBuilder[paramLength];
 
@@ -74,26 +77,31 @@ public class FaAccess
 
         for(int i = 0; i < paramLength; i++)
         {
-            if(ps[i].ParameterType.IsByRef) il.Emit(OpCodes.Ldloca_S, locals[i]);
-            else il.Emit(OpCodes.Ldloc, locals[i]);
+            LocalBuilder builder = locals[i];
+            if(parametersInfos[i].ParameterType.IsByRef) il.Emit(OpCodes.Ldloca_S, builder);
+            else il.Emit(OpCodes.Ldloc, builder);
         }
 
         if(info.IsStatic) il.EmitCall(OpCodes.Call, info, null);
         else il.EmitCall(OpCodes.Callvirt, info, null);
 
-        if(info.ReturnType == typeof(void)) il.Emit(OpCodes.Ldnull);
-        else FaEmitHelper.EmitBoxIfNeeded(il, info.ReturnType);
+        Type returnType = info.ReturnType;
+
+        if(returnType == typeof(void)) il.Emit(OpCodes.Ldnull);
+        else FaEmitHelper.EmitBoxIfNeeded(il, returnType);
 
         for(int i = 0; i < paramLength; i++)
         {
-            if(ps[i].ParameterType.IsByRef)
-            {
-                il.Emit(OpCodes.Ldarg_1);
-                FaEmitHelper.EmitFastInt(il, i);
-                il.Emit(OpCodes.Ldloc, locals[i]);
-                if(locals[i].LocalType.IsValueType) il.Emit(OpCodes.Box, locals[i].LocalType);
-                il.Emit(OpCodes.Stelem_Ref);
-            }
+            if(!parametersInfos[i].ParameterType.IsByRef) continue;
+
+            il.Emit(OpCodes.Ldarg_1);
+            FaEmitHelper.EmitFastInt(il, i);
+            LocalBuilder builder = locals[i];
+            il.Emit(OpCodes.Ldloc, builder);
+            Type localType = builder.LocalType;
+            if(localType.IsValueType) il.Emit(OpCodes.Box, localType);
+            il.Emit(OpCodes.Stelem_Ref);
+
         }
 
         il.Emit(OpCodes.Ret);
