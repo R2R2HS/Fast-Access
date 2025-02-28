@@ -8,6 +8,10 @@ namespace FA;
 
 public class FaAccess
 {
+    public delegate object FaValueGetAccessHandler(object? target);
+    public delegate void FaValueSetAccessHandler(object? target, object? value);
+    public delegate object FaInvokeAccessHandler(object? target, object[]? arguments);
+
     private static readonly Type[] s_InvokeArguments = [typeof(object), typeof(object[])];
     private static readonly Type[] s_GetArguments = [typeof(object)];
     private static readonly Type[] s_SetArguments = [typeof(object), typeof(object)];
